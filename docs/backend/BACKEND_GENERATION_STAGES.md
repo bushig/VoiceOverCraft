@@ -180,84 +180,32 @@ initial → text_templated → accented → validated → splitted → merged
 
 ---
 
-## 🗄 Модель данных: GENERATION_BATCHES
+## 🔗 Связанные документы
 
-| Поле | Тип | Описание |
-|:---|:---|:---|
-| `id` | PK | Уникальный идентификатор |
-| `generation_id` | FK | Ссылка на `GENERATIONS.id` |
-| `voice_id` | FK | Ссылка на `VOICES.id` (голос для этого батча) |
-| `text` | Text | Фрагмент текста для озвучки |
-| `order_index` | Integer | **Порядок склейки** (0, 1, 2, ...) |
-| `status` | Enum | `pending` → `complete` → (error) |
-| `generated_file` | String | **S3 URL** аудиофайла (после генерации) |
-| `created_at` | Timestamp | Время создания |
-| `updated_at` | Timestamp | Время обновления |
-
----
-
-## 🔌 API Endpoints
-
-### 1. Получение готовых к склейке генераций
-
-`GET /api/v1/generations/ready-for-merge`
-
-**Ответ:** Список генераций со статусом `splitted`, у которых все батчи имеют `status='complete'`. Каждая генерация содержит массив `batches` с `order_index` и `generated_file`.
-
----
-
-### 2. Обновление статуса GENERATION
-
-`PUT /api/v1/generations/{id}/status`
-
-**Тело:** `{ "status": "merged", "generated_file": "S3_URL" }`
-
----
-
-### 3. Обновление статуса BATCH
-
-`PUT /api/v1/generation-batches/{id}/status`
-
-**Тело:** `{ "status": "complete", "generated_file": "S3_URL" }`
-
----
-
-### 4. Загрузка файла в S3
-
-`POST /api/v1/files/upload` (multipart/form-data)
-
-**Тело:** `file` — аудиофайл в формате OGG
-
-**Ответ:** `{ "success": true, "file_url": "S3_URL" }`
-
----
-
-## 🎯 Выбор голосов (Voice Selection)
-
-### Приоритет (см. `BACKEND_VOICE_LOGIC.md`)
-
-1. **Голос для GENERATION** — `GENERATIONS.specific_voice_id`
-2. **Голос для REPLICS** — `REPLICS.specific_voice_id`
-3. **Голос для SPEAKERS** — `SPEAKERS.specific_voice_id`
-4. **Фоллбек** — стандартный голос `{race}_{gender}_{NPCSoundID}`
-
-### Голос диктора
-
-- Передаётся в **конфиге воркера**: `--narrator-voice-id=42`
-- Применяется к блокам текста в символах `<...>`
-- Пример: `"<Это говорит диктор.>"` → голос диктора
+- [`BACKEND_DATA_MODELS.md`](./BACKEND_DATA_MODELS.md) — Модель данных (таблица GENERATION_BATCHES)
+- [`BACKEND_API_REFERENCE.md`](./BACKEND_API_REFERENCE.md) — API endpoints
+- [`BACKEND_VOICE_LOGIC.md`](./BACKEND_VOICE_LOGIC.md) — Логика выбора голосов
+- [`BACKEND_WORKER_ARCHITECTURE.md`](./BACKEND_WORKER_ARCHITECTURE.md) — Архитектура воркеров
 
 ---
 
 ## 💻 Логика воркеров (кратко)
 
+Подробная архитектура воркеров описана в [`BACKEND_WORKER_ARCHITECTURE.md`](./BACKEND_WORKER_ARCHITECTURE.md).
+
 **Воркер акцентов:** Получает задачи со статусом `accented`, проверяет текст на отсутствие нерусских символов, переводит в `validated`. При ошибке — переход в `error`.
 
-**Воркер синтеза батчей:** 
-- Получает батчи со статусом `pending`
-- Группирует по `voice_id` (оптимизация загрузки моделей)
-- Для каждого батча: генерирует аудио → загружает в S3 → обновляет статус в `complete`
+**Воркер создания батчей (на этапе `splitted`):**
+- Разбивает текст генерации на фрагменты
+- Создаёт записи в `GENERATION_BATCHES` со статусом `pending`
+- Выбирает голос для каждого батча (см. [`BACKEND_VOICE_LOGIC.md`](./BACKEND_VOICE_LOGIC.md))
 - Блоки `<...>` озвучиваются голосом диктора
+
+**Воркер синтеза батчей (отдельный процесс):**
+- Получает батчи со статусом `pending` через API
+- Генерирует аудио для каждого батча → загружает в S3
+- Обновляет статус батча в `complete`
+- Когда все батчи генерации сгенерированы → GENERATION готова к склейке
 
 **Воркер склейки (merge):**
 - Получает генерации, где все батчи имеют `status='complete'`
@@ -295,8 +243,4 @@ initial → text_templated → accented → validated → splitted → merged
 
 ---
 
-## 🔗 Связанные документы
 
-- [`BACKEND_VOICE_LOGIC.md`](./BACKEND_VOICE_LOGIC.md) — Логика наследования голосов
-- [`BACKEND_QUEUE_SYSTEM.md`](./BACKEND_QUEUE_SYSTEM.md) — Очередь задач и API
-- [`BACKEND_DATA_MODELS.md`](./BACKEND_DATA_MODELS.md) — Модель данных

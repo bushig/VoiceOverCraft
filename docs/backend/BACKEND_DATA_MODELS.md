@@ -78,13 +78,27 @@
 
 ## 6. `GENERATION_BATCHES` (Фрагменты генерации)
 
+**Описание:** Фрагменты текста для поэтапной генерации. Создаются на этапе `splitted`.
+
 | Поле | Описание |
 |:---|:---|
 | `id` | PK |
-| `generation_id` | Ссылка на `GENERATIONS` |
-| `voice_id` | Ссылка на `VOICES` (голос для этого батча) |
+| `generation_id` | FK → `GENERATIONS.id` |
+| `voice_id` | FK → `VOICES.id` (голос для этого батча) |
 | `text` | Фрагмент текста для озвучки |
 | `order_index` | Integer — порядок склейки (0, 1, 2, ...) |
-| `status` | `pending` → `complete` / `error` |
-| `generated_file` | S3 URL аудиофайла в формате OGG (после генерации) |
+| `status` | Enum: `pending` → `complete` / `error` |
+| `generated_file` | String — S3 URL аудиофайла в формате OGG (после генерации) |
 | `created_at`, `updated_at` | Timestamps |
+
+**Связи:**
+- Один `GENERATION` → много `GENERATION_BATCHES`
+- Все батчи должны иметь `status='complete'` для перехода GENERATION в `merged`
+
+---
+
+## 🔗 Связанные документы
+
+- [`BACKEND_GENERATION_STAGES.md`](./BACKEND_GENERATION_STAGES.md) — Этап `splitted` (создание батчей)
+- [`BACKEND_API_REFERENCE.md`](./BACKEND_API_REFERENCE.md) — API endpoints для работы с батчами
+- [`BACKEND_WORKER_ARCHITECTURE.md`](./BACKEND_WORKER_ARCHITECTURE.md) — Синтез батчей (воркер)
