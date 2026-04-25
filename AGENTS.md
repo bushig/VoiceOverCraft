@@ -64,10 +64,11 @@
 
 | Файл | Зачем идти |
 |------|------------|
-| [`BACKEND_GENERATION_STAGES.md`](docs/backend/BACKEND_GENERATION_STAGES.md) | 6 этапов генерации + примеры воркеров |
+| [`BACKEND_GENERATION_STAGES.md`](docs/backend/BACKEND_GENERATION_STAGES.md) | 6 этапов генерации |
 | [`BACKEND_DATA_MODELS.md`](docs/backend/BACKEND_DATA_MODELS.md) | 6 таблиц БД (REPLICS, QUESTS, SPEAKERS, VOICES, GENERATIONS, GENERATION_BATCHES) |
-| [`BACKEND_QUEUE_SYSTEM.md`](docs/backend/BACKEND_QUEUE_SYSTEM.md) | REST API для очередей (3 endpoint, polling) |
-| [`BACKEND_VOICE_LOGIC.md`](docs/backend/BACKEND_VOICE_LOGIC.md) | Приоритет выбора голосов + дикторские блоки |
+| [`BACKEND_API_REFERENCE.md`](docs/backend/BACKEND_API_REFERENCE.md) | REST API Reference (8 endpoints, примеры, коды ошибок) |
+| [`BACKEND_VOICE_LOGIC.md`](docs/backend/BACKEND_VOICE_LOGIC.md) | Приоритет выбора голосов + голос диктора для `<...>` |
+| [`BACKEND_WORKER_ARCHITECTURE.md`](docs/backend/BACKEND_WORKER_ARCHITECTURE.md) | Запуск воркеров, параметры, масштабирование, мониторинг |
 | [`BACKEND_DEVELOPMENT_STAGES.md`](docs/backend/BACKEND_DEVELOPMENT_STAGES.md) | Этапы разработки |
 | [`BACKEND_OPEN_QUESTIONS.md`](docs/backend/BACKEND_OPEN_QUESTIONS.md) | Открытые вопросы для обсуждения |
 
@@ -76,10 +77,3 @@ _Документация в разработке_
 
 ---
 
-## 🚀 Типовые задачи агента
-
-**Модели данных:** → [`BACKEND_DATA_MODELS.md`](docs/backend/BACKEND_DATA_MODELS.md)  
-**Воркеры:** → [`BACKEND_GENERATION_STAGES.md`](docs/backend/BACKEND_GENERATION_STAGES.md)  
-**API endpoints:** → [`BACKEND_QUEUE_SYSTEM.md`](docs/backend/BACKEND_QUEUE_SYSTEM.md)  
-**Голоса:** → [`BACKEND_VOICE_LOGIC.md`](docs/backend/BACKEND_VOICE_LOGIC.md)  
-**Наполнение БД:** → [`HOW_TO_FILL_DATABASE.md`](HOW_TO_FILL_DATABASE.md)
