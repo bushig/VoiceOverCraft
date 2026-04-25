@@ -60,28 +60,10 @@ initial → text_templated → accented → validated → splitted → merged
 **Вход:** `GENERATIONS` со статусом `text_templated` (текст уже шаблонизирован)
 
 **Логика:**
-1. Замена переменных WoW на универсальные значения:
-   ```python
-   REPLACE_DICT = {
-       '$b': '\n',
-       '$B': '\n',
-       '$n': 'герой',
-       '$N': 'Герой',
-       '$C': 'Путник',
-       '$c': 'путник',
-       '$R': 'Странник',
-       '$r': 'странник'
-   }
-   ```
-
+1. Замена переменных WoW на универсальные значения: `$N` → `"Герой"`, `$n` → `"герой"`, `$C/$c` → `"путник"`, `$R/$r` → `"странник"`
 2. Замена гендерных маркеров (TODO: уточнить синтаксис WoW)
-
-3. Замена цифр на слова:
-   - `5` → `"пять"`
-   - `10` → `"десять"`
-
+3. Замена цифр на слова: `5` → `"пять"`, `10` → `"десять"`
 4. Удаление спецсимволов, непонятных для TTS
-
 5. Замена имени игрока на универсальное обращение
 
 **Результат:**
@@ -149,30 +131,19 @@ initial → text_templated → accented → validated → splitted → merged
 **Логика:**
 
 1. **Разбиение текста на фрагменты:**
-   - По предложениям (`.`, `!`, `?`)
-   - Или по максимальной длине (например, 200 символов)
+    - По предложениям (`.`, `!`, `?`)
+    - Или по максимальной длине (например, 200 символов)
 
 2. **Создание записей в `GENERATION_BATCHES`:**
-   ```python
-   batches = []
-   for i, fragment in enumerate(fragments):
-       voice_id = select_voice(fragment, generation)
-       batches.append({
-           'generation_id': generation.id,
-           'voice_id': voice_id,
-           'text': fragment,
-           'order_index': i,
-           'status': 'pending'
-       })
-   ```
+    - Для каждого фрагмента создаётся запись с `generation_id`, `voice_id`, `text`, `order_index`, `status='pending'`
 
 3. **Выбор голоса для каждого батча:**
-   - Блок `<...>` (диктор) → `narrator_voice_id` (из конфига воркера)
-   - Остальное → по приоритету (см. `BACKEND_VOICE_LOGIC.md`):
-     1. Голос из `GENERATIONS.specific_voice_id`
-     2. Голос из `REPLICS.specific_voice_id`
-     3. Голос из `SPEAKERS.specific_voice_id`
-     4. Фоллбек: `{race}_{gender}_{NPCSoundID}`
+    - Блок `<...>` (диктор) → `narrator_voice_id` (из конфига воркера)
+    - Остальное → по приоритету (см. `BACKEND_VOICE_LOGIC.md`):
+      1. Голос из `GENERATIONS.specific_voice_id`
+      2. Голос из `REPLICS.specific_voice_id`
+      3. Голос из `SPEAKERS.specific_voice_id`
+      4. Фоллбек: `{race}_{gender}_{NPCSoundID}`
 
 **Результат:**
 - Массив `GENERATION_BATCHES` для данной `GENERATION`
@@ -188,23 +159,20 @@ initial → text_templated → accented → validated → splitted → merged
 
 **Логика:**
 
-1. **Получение готовых генераций:**
-   ```http
-   GET /api/v1/generations/ready-for-merge
-   ```
-   
-   Бэкэнд возвращает `GENERATIONS` где:
-   - `status = 'splitted'`
-   - **Все** связанные батчи имеют `status = 'complete'`
+1. **Получение готовых генераций:** `GET /api/v1/generations/ready-for-merge`
+    
+    Бэкэнд возвращает `GENERATIONS` где:
+    - `status = 'splitted'`
+    - **Все** связанные батчи имеют `status = 'complete'`
 
 2. **Склейка аудио:**
-   - Скачать все батчи из S3 (по `generated_file`)
-   - Склеить в порядке `order_index`
-   - Нормализация громкости (опционально)
+    - Скачать все батчи из S3 (по `generated_file`)
+    - Склеить в порядке `order_index`
+    - Нормализация громкости (опционально)
 
 3. **Загрузка в S3:**
-   - Загрузить финальный OGG-файл через API бэкэнда
-   - Бэкэнд обновляет `GENERATIONS.generated_file` = S3 URL
+    - Загрузить финальный OGG-файл через API бэкэнда
+    - Бэкэнд обновляет `GENERATIONS.generated_file` = S3 URL
 
 **Результат:**
 - Финальный аудиофайл в S3
@@ -232,87 +200,35 @@ initial → text_templated → accented → validated → splitted → merged
 
 ### 1. Получение готовых к склейке генераций
 
-```http
-GET /api/v1/generations/ready-for-merge
-```
+`GET /api/v1/generations/ready-for-merge`
 
-**Ответ:**
-```json
-[
-  {
-    "id": 123,
-    "locale": "ruRU",
-    "batches": [
-      {
-        "id": 1,
-        "order_index": 0,
-        "generated_file": "https://s3.example.com/batches/123_0.ogg",
-        "text": "Прив+ет гер+ой!"
-      },
-      {
-        "id": 2,
-        "order_index": 1,
-        "generated_file": "https://s3.example.com/batches/123_1.ogg",
-        "text": "Я р+ад тебя в+идеть."
-      }
-    ]
-  }
-]
-```
+**Ответ:** Список генераций со статусом `splitted`, у которых все батчи имеют `status='complete'`. Каждая генерация содержит массив `batches` с `order_index` и `generated_file`.
 
 ---
 
 ### 2. Обновление статуса GENERATION
 
-```http
-PUT /api/v1/generations/{id}/status
-Content-Type: application/json
-```
+`PUT /api/v1/generations/{id}/status`
 
-**Тело:**
-```json
-{
-  "status": "merged",
-  "generated_file": "https://s3.example.com/generations/123/final.ogg"
-}
-```
+**Тело:** `{ "status": "merged", "generated_file": "S3_URL" }`
 
 ---
 
 ### 3. Обновление статуса BATCH
 
-```http
-PUT /api/v1/generation-batches/{id}/status
-Content-Type: application/json
-```
+`PUT /api/v1/generation-batches/{id}/status`
 
-**Тело:**
-```json
-{
-  "status": "complete",
-  "generated_file": "https://s3.example.com/batches/456.ogg"
-}
-```
+**Тело:** `{ "status": "complete", "generated_file": "S3_URL" }`
 
 ---
 
 ### 4. Загрузка файла в S3
 
-```http
-POST /api/v1/files/upload
-Content-Type: multipart/form-data
-```
+`POST /api/v1/files/upload` (multipart/form-data)
 
-**Тело:**
-- `file` — аудиофайл в формате OGG
+**Тело:** `file` — аудиофайл в формате OGG
 
-**Ответ:**
-```json
-{
-  "success": true,
-  "file_url": "https://s3.example.com/uploads/abc123.ogg"
-}
-```
+**Ответ:** `{ "success": true, "file_url": "S3_URL" }`
 
 ---
 
@@ -333,180 +249,20 @@ Content-Type: multipart/form-data
 
 ---
 
-## 💻 Примеры воркеров
+## 💻 Логика воркеров (кратко)
 
-### Воркер для акцентов
+**Воркер акцентов:** Получает задачи со статусом `accented`, проверяет текст на отсутствие нерусских символов, переводит в `validated`. При ошибке — переход в `error`.
 
-```python
-import requests
+**Воркер синтеза батчей:** 
+- Получает батчи со статусом `pending`
+- Группирует по `voice_id` (оптимизация загрузки моделей)
+- Для каждого батча: генерирует аудио → загружает в S3 → обновляет статус в `complete`
+- Блоки `<...>` озвучиваются голосом диктора
 
-API_URL = "http://localhost:8000/api/v1"
-
-def add_accents(text):
-    """Проставить ударения через ruaccent."""
-    from ruaccent import add_accent
-    return add_accent(text)
-
-def main():
-    # Получить задачи с проставленными ударениями
-    resp = requests.get(f"{API_URL}/generations/tasks", params={
-        "status": "accented",
-        "limit": 50
-    })
-    tasks = resp.json()
-    
-    for task in tasks:
-        try:
-            # Проверить текст
-            if has_invalid_chars(task['text']):
-                raise ValueError("Найдены нерусские символы")
-            
-            # Перевести в validated
-            requests.put(f"{API_URL}/generations/{task['id']}/status", json={
-                "status": "validated"
-            })
-            print(f"Задача {task['id']} проверена")
-            
-        except Exception as e:
-            requests.put(f"{API_URL}/generations/{task['id']}/status", json={
-                "status": "error",
-                "error": str(e)
-            })
-```
-
----
-
-### Воркер для синтеза батчей
-
-```python
-import requests
-
-API_URL = "http://localhost:8000/api/v1"
-NARRATOR_VOICE_ID = 42  # из конфига
-
-def generate_audio(text, voice_id):
-    """AI-генерация аудио через F5 TTS."""
-    # Здесь логика вызова F5 TTS
-    # Возвращает путь к локальному OGG файлу
-    pass
-
-def select_voice(text, generation):
-    """Выбрать голос для батча."""
-    if text.startswith('<') and text.endswith('>'):
-        return NARRATOR_VOICE_ID
-    
-    # Приоритет голосов
-    if generation.get('specific_voice_id'):
-        return generation['specific_voice_id']
-    # ... остальная логика
-    return fallback_voice_id
-
-def main():
-    # Получить батчи для генерации
-    resp = requests.get(f"{API_URL}/generation-batches/tasks", params={
-        "status": "pending",
-        "limit": 100
-    })
-    batches = resp.json()
-    
-    # Группировка по voice_id (оптимизация)
-    from itertools import groupby
-    batches_by_voice = groupby(batches, key=lambda b: b['voice_id'])
-    
-    for voice_id, voice_batches in batches_by_voice:
-        for batch in voice_batches:
-            try:
-                # Сгенерировать аудио
-                audio_path = generate_audio(batch['text'], voice_id)
-                
-                # Загрузить в S3 через бэкэнд
-                with open(audio_path, 'rb') as f:
-                    upload_resp = requests.post(
-                        f"{API_URL}/files/upload",
-                        files={'file': f}
-                    )
-                    s3_url = upload_resp.json()['file_url']
-                
-                # Обновить статус батча
-                requests.put(f"{API_URL}/generation-batches/{batch['id']}/status", json={
-                    "status": "complete",
-                    "generated_file": s3_url
-                })
-                print(f"Батч {batch['id']} сгенерирован")
-                
-            except Exception as e:
-                requests.put(f"{API_URL}/generation-batches/{batch['id']}/status", json={
-                    "status": "error",
-                    "error": str(e)
-                })
-```
-
----
-
-### Воркер для склейки (merge)
-
-```python
-import requests
-from pydub import AudioSegment
-import tempfile
-import os
-
-API_URL = "http://localhost:8000/api/v1"
-
-def merge_audio_files(file_paths, output_path):
-    """Склеить аудиофайлы в порядке order_index."""
-    combined = AudioSegment.empty()
-    for file_path in sorted(file_paths):
-        audio = AudioSegment.from_ogg(file_path)
-        combined += audio
-    combined.export(output_path, format='ogg')
-    return output_path
-
-def main():
-    # Получить генерации, готовые к склейке
-    resp = requests.get(f"{API_URL}/generations/ready-for-merge")
-    generations = resp.json()
-    
-    for gen in generations:
-        try:
-            # Скачать все батчи
-            batch_files = []
-            for batch in sorted(gen['batches'], key=lambda b: b['order_index']):
-                resp = requests.get(batch['generated_file'])
-                temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.ogg')
-                temp_file.write(resp.content)
-                batch_files.append(temp_file.name)
-            
-            # Склеить
-            output_file = tempfile.NamedTemporaryFile(delete=False, suffix='.ogg')
-            merge_audio_files(batch_files, output_file.name)
-            
-            # Загрузить в S3
-            with open(output_file.name, 'rb') as f:
-                upload_resp = requests.post(
-                    f"{API_URL}/files/upload",
-                    files={'file': f}
-                )
-                s3_url = upload_resp.json()['file_url']
-            
-            # Перевести в merged
-            requests.put(f"{API_URL}/generations/{gen['id']}/status", json={
-                "status": "merged",
-                "generated_file": s3_url
-            })
-            print(f"Генерация {gen['id']} завершена")
-            
-            # Очистка
-            for f in batch_files:
-                os.unlink(f)
-            os.unlink(output_file.name)
-            
-        except Exception as e:
-            requests.put(f"{API_URL}/generations/{gen['id']}/status", json={
-                "status": "error",
-                "error": str(e)
-            })
-```
+**Воркер склейки (merge):**
+- Получает генерации, где все батчи имеют `status='complete'`
+- Скачивает батчи из S3, склеивает по `order_index`
+- Загружает финальный OGG в S3, обновляет генерацию в `merged`
 
 ---
 
@@ -514,23 +270,14 @@ def main():
 
 **Файл:** `scripts/create_initial_generations.py`
 
-**Пример запуска:**
-```bash
-python scripts/create_initial_generations.py \
-  --zone 1,2,3 \
-  --min-level 10 \
-  --max-level 80 \
-  --replica-kind quest \
-  --replica-type accept,complete \
-  --extension vanilla
-```
+**Параметры:** `--zone`, `--min-level`, `--max-level`, `--replica-kind`, `--replica-type`, `--extension`
 
 **Логика:**
 1. Выбрать `REPLICS` по фильтрам
 2. Для каждой реплики:
-   - Проверить `isGenderSpecific`
-   - Создать одну или две `GENERATIONS` (male/female)
-   - Установить `status = 'initial'`
+    - Проверить `isGenderSpecific`
+    - Создать одну или две `GENERATIONS` (male/female)
+    - Установить `status = 'initial'`
 3. Вывести статистику созданных задач
 
 ---
